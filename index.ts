@@ -10,6 +10,9 @@ const terminal = readline.createInterface({
 
 const messages: ModelMessage[] = [];
 
+/**
+ * Runs a simple terminal chat loop against Gemini with Google Search enabled.
+ */
 async function main() {
     while (true) {
         const userInput = await terminal.question("You: ");

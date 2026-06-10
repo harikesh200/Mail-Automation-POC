@@ -67,6 +67,9 @@ Reasoning and action:
 - If evidence is weak, choose a lower score and say that the email has no clear action or deadline.
 `;
 
+/**
+ * Creates the configured Gemini model instance for structured priority analysis.
+ */
 function getModel() {
     const google = createGoogleGenerativeAI({
         apiKey: env.GOOGLE_GENERATIVE_AI_API_KEY,
@@ -75,6 +78,12 @@ function getModel() {
     return google("gemini-2.5-flash");
 }
 
+/**
+ * Normalizes sender input before it is sent to the AI model or returned by fallback logic.
+ *
+ * @param from - Sender value from the incoming email.
+ * @returns Sender object with string `name` and `email` fields.
+ */
 function normalizeSender(from: IncomingEmail["from"]): {
     name: string;
     email: string;
@@ -93,6 +102,12 @@ function normalizeSender(from: IncomingEmail["from"]): {
     };
 }
 
+/**
+ * Builds the JSON prompt payload for one email and its parsed attachments.
+ *
+ * @param input - Email plus attachment parse results.
+ * @returns Pretty-printed JSON prompt content for the model.
+ */
 function buildPrompt(input: EmailForAi): string {
     const { email, parsedAttachments } = input;
 
@@ -121,6 +136,12 @@ function buildPrompt(input: EmailForAi): string {
     );
 }
 
+/**
+ * Creates a safe priority result when AI analysis fails for an email.
+ *
+ * @param email - Email that could not be prioritized by the model.
+ * @returns A medium-priority manual-review result that still satisfies the API schema.
+ */
 export function buildFallbackPriority(email: IncomingEmail): PrioritizedEmail {
     const sender = normalizeSender(email.from);
 
@@ -139,6 +160,15 @@ export function buildFallbackPriority(email: IncomingEmail): PrioritizedEmail {
     };
 }
 
+/**
+ * Prioritizes one email using structured Gemini output.
+ *
+ * The returned object is schema-validated, score-clamped, and normalized so
+ * missing model fields fall back to source email values where possible.
+ *
+ * @param input - Email and parsed attachment evidence for one prioritization decision.
+ * @returns A validated priority analysis for the email.
+ */
 export async function prioritizeEmailWithAi(
     input: EmailForAi,
 ): Promise<PrioritizedEmail> {

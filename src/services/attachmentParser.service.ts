@@ -37,10 +37,16 @@ const docxMimeTypes = new Set([
 ]);
 const docxExtensions = new Set([".docx"]);
 
+/**
+ * Returns a stable filename for parser output and logs.
+ */
 function getAttachmentFilename(attachment: EmailAttachment): string {
     return attachment.filename ?? attachment.name ?? "unnamed-attachment";
 }
 
+/**
+ * Returns the best available MIME type for parser selection.
+ */
 function getAttachmentMimeType(attachment: EmailAttachment): string {
     return (
         attachment.mimeType ??
@@ -49,11 +55,17 @@ function getAttachmentMimeType(attachment: EmailAttachment): string {
     );
 }
 
+/**
+ * Extracts a lowercase file extension, including the leading dot.
+ */
 function getFileExtension(filename: string): string {
     const dotIndex = filename.lastIndexOf(".");
     return dotIndex >= 0 ? filename.slice(dotIndex).toLowerCase() : "";
 }
 
+/**
+ * Checks whether an attachment is eligible for text extraction.
+ */
 function isSupportedAttachment(filename: string, mimeType: string): boolean {
     return (
         supportedMimeTypes.has(mimeType) ||
@@ -61,6 +73,9 @@ function isSupportedAttachment(filename: string, mimeType: string): boolean {
     );
 }
 
+/**
+ * Checks whether an attachment should be parsed through the spreadsheet path.
+ */
 function isSpreadsheetAttachment(filename: string, mimeType: string): boolean {
     return (
         spreadsheetMimeTypes.has(mimeType) ||
@@ -68,6 +83,9 @@ function isSpreadsheetAttachment(filename: string, mimeType: string): boolean {
     );
 }
 
+/**
+ * Checks whether an attachment should be parsed through the DOCX path.
+ */
 function isDocxAttachment(filename: string, mimeType: string): boolean {
     return (
         docxMimeTypes.has(mimeType) ||
@@ -75,6 +93,9 @@ function isDocxAttachment(filename: string, mimeType: string): boolean {
     );
 }
 
+/**
+ * Converts the supported attachment content encodings into a `Buffer`.
+ */
 function getAttachmentBuffer(attachment: EmailAttachment): Buffer | null {
     if (Buffer.isBuffer(attachment.content)) {
         return attachment.content;
@@ -91,10 +112,19 @@ function getAttachmentBuffer(attachment: EmailAttachment): Buffer | null {
     return null;
 }
 
+/**
+ * Truncates parsed attachment text to the configured AI prompt budget.
+ */
 function limitText(text: string): string {
     return text.slice(0, env.MAX_ATTACHMENT_CHARS);
 }
 
+/**
+ * Extracts workbook sheets as CSV text.
+ *
+ * @param buffer - Spreadsheet file contents.
+ * @returns CSV-like text grouped by sheet name.
+ */
 async function parseSpreadsheet(buffer: Buffer): Promise<string> {
     const xlsx = await import("xlsx");
     const workbook = xlsx.read(buffer, {
@@ -119,12 +149,27 @@ async function parseSpreadsheet(buffer: Buffer): Promise<string> {
         .join("\n\n");
 }
 
+/**
+ * Extracts raw text from a DOCX document.
+ *
+ * @param buffer - DOCX file contents.
+ * @returns Plain text extracted from the document.
+ */
 async function parseDocx(buffer: Buffer): Promise<string> {
     const mammoth = await import("mammoth");
     const result = await mammoth.extractRawText({ buffer });
     return result.value;
 }
 
+/**
+ * Parses a single attachment into text suitable for AI prioritization.
+ *
+ * Unsupported or unavailable attachments are marked as `skipped`; parser errors
+ * are logged and marked as `failed` so one bad file does not fail the email.
+ *
+ * @param attachment - Attachment payload from the email source.
+ * @returns A normalized parse result containing text or failure metadata.
+ */
 export async function parseAttachment(
     attachment: EmailAttachment,
 ): Promise<ParsedAttachment> {
@@ -197,6 +242,12 @@ export async function parseAttachment(
     }
 }
 
+/**
+ * Parses all attachments for one email concurrently.
+ *
+ * @param attachments - Attachments from an incoming email. Defaults to an empty list.
+ * @returns Parse results in the same order as the input attachments.
+ */
 export async function parseAttachments(
     attachments: EmailAttachment[] = [],
 ): Promise<ParsedAttachment[]> {

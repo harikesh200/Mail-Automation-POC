@@ -13,6 +13,13 @@ const REQUIRED_ENV_VARS = [
 
 type RequiredEnvVar = (typeof REQUIRED_ENV_VARS)[number];
 
+/**
+ * Reads a required environment variable and fails fast when it is missing.
+ *
+ * @param name - Required environment variable name.
+ * @returns The configured environment value.
+ * @throws When the variable is unset or empty.
+ */
 function requireEnv(name: RequiredEnvVar): string {
     const value = process.env[name];
     if (!value) {
@@ -26,6 +33,9 @@ if (!Number.isFinite(imapPort) || imapPort <= 0) {
     throw new Error("IMAP_PORT must be a valid positive number");
 }
 
+/**
+ * Attachment summary returned by the standalone Gmail fetcher.
+ */
 type EmailAttachmentSummary = {
     filename: string | null;
     contentType: string;
@@ -33,6 +43,9 @@ type EmailAttachmentSummary = {
     contentBase64: string;
 };
 
+/**
+ * Parsed Gmail message returned by the IMAP fetcher.
+ */
 export type EmailSummary = {
     uid: number;
     subject?: string;
@@ -47,6 +60,12 @@ export type EmailSummary = {
 
 const PREVIEW_LENGTH = 500;
 
+/**
+ * Converts MailParser address objects into a display string.
+ *
+ * @param address - Parsed sender or recipient address data.
+ * @returns A comma-separated address string, or `undefined` when absent.
+ */
 function getAddressText(
     address: AddressObject | AddressObject[] | undefined,
 ): string | undefined {
@@ -61,6 +80,11 @@ function getAddressText(
     return address.text;
 }
 
+/**
+ * Creates an authenticated IMAP client for the configured Gmail inbox.
+ *
+ * @returns A configured `ImapFlow` client. The caller owns connect/logout.
+ */
 function createClient(): ImapFlow {
     return new ImapFlow({
         host: requireEnv("IMAP_HOST"),
@@ -74,6 +98,15 @@ function createClient(): ImapFlow {
     });
 }
 
+/**
+ * Fetches and parses the latest Gmail messages from the inbox.
+ *
+ * Reads up to the latest 20 messages, extracts plain text, creates a short text
+ * preview, and base64-encodes attachment bodies for downstream parsing.
+ *
+ * @returns Email summaries ordered newest first.
+ * @throws When required IMAP configuration is missing or the mailbox request fails.
+ */
 export async function fetchLatestEmails(): Promise<EmailSummary[]> {
     const client = createClient();
 

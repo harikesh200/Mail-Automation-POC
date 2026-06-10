@@ -10,6 +10,12 @@ import {
 import { parseAttachments } from "./attachmentParser.service";
 import { fetchLatestEmails } from "./mailFetcher.integration";
 
+/**
+ * Orders source emails by received time before limiting how many are processed.
+ *
+ * @param emails - Emails returned from the mailbox adapter.
+ * @returns A new array with newest emails first.
+ */
 function sortLatestEmails(emails: IncomingEmail[]): IncomingEmail[] {
     return [...emails].sort((left, right) => {
         return (
@@ -19,12 +25,28 @@ function sortLatestEmails(emails: IncomingEmail[]): IncomingEmail[] {
     });
 }
 
+/**
+ * Fetches, parses, prioritizes, and sorts the latest mailbox emails.
+ *
+ * Each email is isolated behind its own fallback path: attachment parsing or AI
+ * failures for one message do not prevent other messages from being prioritized.
+ *
+ * @returns Prioritized emails sorted by score and recency.
+ */
 export async function prioritizeLatestEmails(): Promise<PrioritizedEmail[]> {
     const fetchedEmails = await fetchLatestEmails();
+    logger.info("Fetched latest emails", {
+        count: fetchedEmails.length,
+    });
+
     const emailsToProcess = sortLatestEmails(fetchedEmails).slice(
         0,
         env.MAX_EMAILS_TO_PROCESS,
     );
+    logger.info("Selected emails for prioritization", {
+        count: emailsToProcess.length,
+        maxEmailsToProcess: env.MAX_EMAILS_TO_PROCESS,
+    });
 
     const prioritizedEmails = await Promise.all(
         emailsToProcess.map(async (email) => {
@@ -49,5 +71,10 @@ export async function prioritizeLatestEmails(): Promise<PrioritizedEmail[]> {
         }),
     );
 
-    return sortPrioritizedEmails(prioritizedEmails);
+    const sortedEmails = sortPrioritizedEmails(prioritizedEmails);
+    logger.success("Email prioritization completed", {
+        count: sortedEmails.length,
+    });
+
+    return sortedEmails;
 }
