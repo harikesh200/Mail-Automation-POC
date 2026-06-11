@@ -12,8 +12,8 @@ export type EmailAddress = {
 /**
  * Attachment payload accepted by the prioritization pipeline.
  *
- * Supports both raw `Buffer` content and base64-encoded strings so the same
- * parser can handle IMAP and API-style attachment sources.
+ * Supports both raw `Buffer` content and base64-encoded strings so the parser
+ * can handle API-style attachment sources.
  */
 export type EmailAttachment = {
     id?: string;

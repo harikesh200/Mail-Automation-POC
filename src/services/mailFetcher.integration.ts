@@ -4,7 +4,7 @@ import { fetchLatestEmails as fetchGmailLatestEmails } from "../mail";
 /**
  * Parses a display sender string into the normalized email address shape.
  *
- * @param sender - Sender text from the IMAP parser, usually `Name <email>`.
+ * @param sender - Sender text from the Gmail MIME parser, usually `Name <email>`.
  * @returns Normalized sender details, or `undefined` when no sender was provided.
  */
 function parseSender(sender?: string): IncomingEmail["from"] {
@@ -27,7 +27,7 @@ function parseSender(sender?: string): IncomingEmail["from"] {
 }
 
 /**
- * Adapts Gmail IMAP summaries into the internal prioritization email model.
+ * Adapts Gmail API summaries into the internal prioritization email model.
  *
  * @returns Latest emails with attachment payloads mapped to parser-compatible fields.
  */
@@ -35,7 +35,7 @@ export async function fetchLatestEmails(): Promise<IncomingEmail[]> {
     const emails = await fetchGmailLatestEmails();
 
     return emails.map((email) => ({
-        id: String(email.uid),
+        id: email.id,
         subject: email.subject,
         from: parseSender(email.from),
         receivedDateTime: email.date?.toISOString(),
