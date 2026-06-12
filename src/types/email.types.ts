@@ -31,8 +31,14 @@ export type EmailAttachment = {
  */
 export type IncomingEmail = {
     id: string;
+    threadId?: string | null;
+    messageId?: string;
+    references?: string[];
+    inReplyTo?: string;
     subject?: string;
     from?: EmailAddress | string;
+    to?: EmailAddress[] | string;
+    cc?: EmailAddress[] | string;
     receivedDateTime?: string;
     bodyPreview?: string;
     body?: string;

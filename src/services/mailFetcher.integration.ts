@@ -27,6 +27,28 @@ function parseSender(sender?: string): IncomingEmail["from"] {
 }
 
 /**
+ * Parses a comma-separated display recipient string into normalized addresses.
+ */
+function parseRecipients(recipients?: string): IncomingEmail["to"] {
+    if (!recipients) {
+        return undefined;
+    }
+
+    return recipients.split(",").map((recipient) => {
+        const parsed = parseSender(recipient.trim());
+
+        if (!parsed || typeof parsed === "string") {
+            return {
+                name: recipient.trim(),
+                email: recipient.trim(),
+            };
+        }
+
+        return parsed;
+    });
+}
+
+/**
  * Adapts Gmail API summaries into the internal prioritization email model.
  *
  * @returns Latest emails with attachment payloads mapped to parser-compatible fields.
@@ -36,8 +58,14 @@ export async function fetchLatestEmails(): Promise<IncomingEmail[]> {
 
     return emails.map((email) => ({
         id: email.id,
+        threadId: email.threadId,
+        messageId: email.messageId,
+        references: email.references,
+        inReplyTo: email.inReplyTo,
         subject: email.subject,
         from: parseSender(email.from),
+        to: parseRecipients(email.to),
+        cc: parseRecipients(email.cc),
         receivedDateTime: email.date?.toISOString(),
         bodyPreview: email.textPreview,
         body: email.text,

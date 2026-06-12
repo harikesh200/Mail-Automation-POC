@@ -3,6 +3,7 @@ import express from "express";
 import { env } from "./config/env";
 import { errorHandler } from "./middleware/errorHandler";
 import { requestLogger } from "./middleware/requestLogger";
+import { emailReplyRouter } from "./routes/emailReply.routes";
 import { prioritizeRouter } from "./routes/prioritize.routes";
 import { logger } from "./utils/logger";
 
@@ -45,6 +46,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api", prioritizeRouter);
+app.use("/api", emailReplyRouter);
 app.use(errorHandler);
 
 app.listen(env.PORT, () => {
