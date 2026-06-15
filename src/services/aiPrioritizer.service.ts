@@ -5,6 +5,7 @@ import { emailPrioritySchema } from "../schemas/emailPriority.schema";
 import type {
     EmailForAi,
     IncomingEmail,
+    ParsedAttachment,
     PrioritizedEmail,
 } from "../types/email.types";
 import { clampScore, priorityFromScore } from "../utils/scoring";
@@ -136,13 +137,77 @@ function buildPrompt(input: EmailForAi): string {
     );
 }
 
+type AttachmentInsight = PrioritizedEmail["attachmentInsights"][number];
+
+/**
+ * Returns true when parser output has usable text for attachment summarization.
+ */
+function hasMeaningfulAttachmentText(attachment: ParsedAttachment): boolean {
+    return (
+        attachment.parseStatus === "parsed" && attachment.text.trim().length > 0
+    );
+}
+
+/**
+ * Creates a deterministic attachment insight when the model omits one.
+ */
+function buildFallbackAttachmentInsight(
+    attachment: ParsedAttachment,
+): AttachmentInsight {
+    const normalizedText = attachment.text.replace(/\s+/g, " ").trim();
+    const preview =
+        normalizedText.length > 280
+            ? `${normalizedText.slice(0, 280)}...`
+            : normalizedText;
+
+    return {
+        filename: attachment.filename,
+        summary: `Attachment text was parsed, but the AI did not return a specific attachment summary. Preview: ${preview}`,
+        keyRisks: [],
+        keyDates: [],
+        financialImpact: null,
+    };
+}
+
+/**
+ * Ensures parsed attachments with text are represented in the API response.
+ */
+function ensureAttachmentInsights(
+    insights: AttachmentInsight[],
+    parsedAttachments: ParsedAttachment[],
+): AttachmentInsight[] {
+    const output = [...insights];
+    const filenamesWithInsights = new Set(
+        output.map((insight) => insight.filename.toLowerCase()),
+    );
+
+    for (const attachment of parsedAttachments) {
+        if (!hasMeaningfulAttachmentText(attachment)) {
+            continue;
+        }
+
+        if (filenamesWithInsights.has(attachment.filename.toLowerCase())) {
+            continue;
+        }
+
+        output.push(buildFallbackAttachmentInsight(attachment));
+        filenamesWithInsights.add(attachment.filename.toLowerCase());
+    }
+
+    return output;
+}
+
 /**
  * Creates a safe priority result when AI analysis fails for an email.
  *
  * @param email - Email that could not be prioritized by the model.
+ * @param parsedAttachments - Attachment parse results available before AI failed.
  * @returns A medium-priority manual-review result that still satisfies the API schema.
  */
-export function buildFallbackPriority(email: IncomingEmail): PrioritizedEmail {
+export function buildFallbackPriority(
+    email: IncomingEmail,
+    parsedAttachments: ParsedAttachment[] = [],
+): PrioritizedEmail {
     const sender = normalizeSender(email.from);
 
     return {
@@ -156,7 +221,7 @@ export function buildFallbackPriority(email: IncomingEmail): PrioritizedEmail {
         suggestedAction: "Review manually.",
         category: "Other",
         deadlineDetected: null,
-        attachmentInsights: [],
+        attachmentInsights: ensureAttachmentInsights([], parsedAttachments),
     };
 }
 
@@ -202,5 +267,9 @@ export async function prioritizeEmailWithAi(
         priority: priorityFromScore(score),
         reasoning: parsed.reasoning || "No reasoning provided by AI.",
         suggestedAction: parsed.suggestedAction || "Review manually.",
+        attachmentInsights: ensureAttachmentInsights(
+            parsed.attachmentInsights,
+            input.parsedAttachments,
+        ),
     };
 }

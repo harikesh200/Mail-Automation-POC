@@ -1,6 +1,10 @@
 import { env } from "../config/env";
 import { emailPrioritySchema } from "../schemas/emailPriority.schema";
-import type { IncomingEmail, PrioritizedEmail } from "../types/email.types";
+import type {
+    IncomingEmail,
+    ParsedAttachment,
+    PrioritizedEmail,
+} from "../types/email.types";
 import { logger } from "../utils/logger";
 import { sortPrioritizedEmails } from "../utils/scoring";
 import {
@@ -50,10 +54,24 @@ export async function prioritizeLatestEmails(): Promise<PrioritizedEmail[]> {
 
     const prioritizedEmails = await Promise.all(
         emailsToProcess.map(async (email) => {
+            let parsedAttachments: ParsedAttachment[] = [];
+
             try {
-                const parsedAttachments = await parseAttachments(
-                    email.attachments ?? [],
-                );
+                parsedAttachments = await parseAttachments(email.attachments ?? []);
+                logger.info("Email attachments parsed", {
+                    emailId: email.id,
+                    total: parsedAttachments.length,
+                    parsed: parsedAttachments.filter(
+                        (attachment) => attachment.parseStatus === "parsed",
+                    ).length,
+                    skipped: parsedAttachments.filter(
+                        (attachment) => attachment.parseStatus === "skipped",
+                    ).length,
+                    failed: parsedAttachments.filter(
+                        (attachment) => attachment.parseStatus === "failed",
+                    ).length,
+                });
+
                 const aiResult = await prioritizeEmailWithAi({
                     email,
                     parsedAttachments,
@@ -66,7 +84,7 @@ export async function prioritizeLatestEmails(): Promise<PrioritizedEmail[]> {
                         error instanceof Error ? error.message : String(error),
                 });
 
-                return buildFallbackPriority(email);
+                return buildFallbackPriority(email, parsedAttachments);
             }
         }),
     );

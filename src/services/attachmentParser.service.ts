@@ -120,6 +120,34 @@ function limitText(text: string): string {
 }
 
 /**
+ * Creates a parsed result only when extraction returned usable text.
+ */
+function buildParsedAttachmentResult(
+    filename: string,
+    mimeType: string,
+    text: string,
+): ParsedAttachment {
+    const limitedText = limitText(text).trim();
+
+    if (!limitedText) {
+        return {
+            filename,
+            mimeType,
+            text: "",
+            parseStatus: "skipped",
+            error: "No extractable attachment text was found.",
+        };
+    }
+
+    return {
+        filename,
+        mimeType,
+        text: limitedText,
+        parseStatus: "parsed",
+    };
+}
+
+/**
  * Extracts workbook sheets as CSV text.
  *
  * @param buffer - Spreadsheet file contents.
@@ -199,33 +227,30 @@ export async function parseAttachment(
 
     try {
         if (isSpreadsheetAttachment(filename, mimeType)) {
-            return {
+            return buildParsedAttachmentResult(
                 filename,
                 mimeType,
-                text: limitText(await parseSpreadsheet(buffer)),
-                parseStatus: "parsed",
-            };
+                await parseSpreadsheet(buffer),
+            );
         }
 
         if (isDocxAttachment(filename, mimeType)) {
-            return {
+            return buildParsedAttachmentResult(
                 filename,
                 mimeType,
-                text: limitText(await parseDocx(buffer)),
-                parseStatus: "parsed",
-            };
+                await parseDocx(buffer),
+            );
         }
 
         const { LiteParse } = await import("@llamaindex/liteparse");
         const parser = new LiteParse({ quiet: true });
         const result = await parser.parse(buffer);
 
-        return {
+        return buildParsedAttachmentResult(
             filename,
             mimeType,
-            text: limitText(result.text ?? ""),
-            parseStatus: "parsed",
-        };
+            result.text ?? "",
+        );
     } catch (error) {
         logger.warn("Attachment parsing failed", {
             filename,
