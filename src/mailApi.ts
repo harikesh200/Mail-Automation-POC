@@ -52,9 +52,6 @@ app.get("/oauth2callback", async (req, res) => {
 
         oauth2Client.setCredentials(tokens);
 
-        console.log("\nToken response:\n");
-        console.log(JSON.stringify(tokens, null, 2));
-
         if (!tokens.refresh_token) {
             console.log("\nNo refresh token was returned.");
             console.log(

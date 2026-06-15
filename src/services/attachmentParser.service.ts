@@ -13,6 +13,8 @@ const supportedMimeTypes = new Set([
     "application/vnd.oasis.opendocument.text",
     "application/vnd.oasis.opendocument.spreadsheet",
     "application/vnd.oasis.opendocument.presentation",
+    "text/calendar",
+    "application/ics",
 ]);
 
 const supportedExtensions = new Set([
@@ -26,6 +28,7 @@ const supportedExtensions = new Set([
     ".odt",
     ".ods",
     ".odp",
+    ".ics",
 ]);
 const spreadsheetMimeTypes = new Set([
     "application/vnd.ms-excel",
@@ -36,6 +39,8 @@ const docxMimeTypes = new Set([
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 const docxExtensions = new Set([".docx"]);
+const calendarMimeTypes = new Set(["text/calendar", "application/ics"]);
+const calendarExtensions = new Set([".ics"]);
 
 /**
  * Returns a stable filename for parser output and logs.
@@ -90,6 +95,16 @@ function isDocxAttachment(filename: string, mimeType: string): boolean {
     return (
         docxMimeTypes.has(mimeType) ||
         docxExtensions.has(getFileExtension(filename))
+    );
+}
+
+/**
+ * Checks whether an attachment contains iCalendar text.
+ */
+function isCalendarAttachment(filename: string, mimeType: string): boolean {
+    return (
+        calendarMimeTypes.has(mimeType) ||
+        calendarExtensions.has(getFileExtension(filename))
     );
 }
 
@@ -190,6 +205,13 @@ async function parseDocx(buffer: Buffer): Promise<string> {
 }
 
 /**
+ * Extracts readable iCalendar text for meeting date/link detection.
+ */
+function parseCalendarAttachment(buffer: Buffer): string {
+    return buffer.toString("utf8");
+}
+
+/**
  * Parses a single attachment into text suitable for AI prioritization.
  *
  * Unsupported or unavailable attachments are marked as `skipped`; parser errors
@@ -239,6 +261,14 @@ export async function parseAttachment(
                 filename,
                 mimeType,
                 await parseDocx(buffer),
+            );
+        }
+
+        if (isCalendarAttachment(filename, mimeType)) {
+            return buildParsedAttachmentResult(
+                filename,
+                mimeType,
+                parseCalendarAttachment(buffer),
             );
         }
 

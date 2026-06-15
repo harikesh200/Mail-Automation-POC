@@ -1,16 +1,15 @@
 import {
     fetchEmailById,
     fetchThreadEmails,
-    sendReply,
-    type EmailSummary,
-    type SentEmailSummary,
-} from "../mail";
+} from "../adapters/google/gmail/fetcher";
+import { sendReply } from "../adapters/google/gmail/reply";
 import type {
     DraftReplyRequest,
     DraftReplyResponse,
     SendReplyRequest,
     SendReplyResponse,
 } from "../schemas/emailReply.schema";
+import type { EmailSummary, SentEmailSummary } from "../types/gmail.types";
 import { HttpError } from "../utils/httpError";
 import { generateDraftReplyWithAi } from "./aiDraftReply.service";
 

@@ -2,7 +2,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import { env } from "../config/env";
-import type { EmailSummary } from "../mail";
+import type { EmailSummary } from "../types/gmail.types";
 
 const MAX_EMAIL_BODY_CHARS = 6000;
 

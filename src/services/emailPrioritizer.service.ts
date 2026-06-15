@@ -12,7 +12,7 @@ import {
     buildFallbackPriority,
 } from "./aiPrioritizer.service";
 import { parseAttachments } from "./attachmentParser.service";
-import { fetchLatestEmails } from "./mailFetcher.integration";
+import { fetchLatestEmails } from "./mailbox.service";
 
 /**
  * Orders source emails by received time before limiting how many are processed.

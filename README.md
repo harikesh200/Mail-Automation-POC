@@ -4,16 +4,22 @@ Node.js/TypeScript backend for ranking the latest Gmail emails as `High`, `Mediu
 
 ## Architecture
 
-- `src/mail.ts`: Gmail API fetcher. It exports `fetchLatestEmails()` and still runs as a standalone script when executed directly.
+- `src/mail.ts`: CLI-compatible Gmail fetch wrapper for `bun run fetch:gmail`.
 - `src/server.ts`: Express app bootstrapping.
 - `src/routes/prioritize.routes.ts`: API route declarations.
 - `src/controllers/prioritize.controller.ts`: HTTP request/response handling.
-- `src/services/mailFetcher.integration.ts`: Adapts the existing Gmail fetcher output into the backend email shape.
+- `src/adapters/google/gmail/client.ts`: Creates authenticated Gmail API clients.
+- `src/adapters/google/gmail/fetcher.ts`: Fetches latest, single-message, and thread Gmail messages.
+- `src/adapters/google/gmail/reply.ts`: Builds and sends plain-text Gmail replies.
+- `src/adapters/google/calendar/events.ts`: Searches and creates Google Calendar events.
+- `src/services/mailbox.service.ts`: Adapts Gmail messages into the backend email shape.
 - `src/services/emailPrioritizer.service.ts`: Orchestrates fetching, parsing, AI prioritization, fallback handling, and sorting.
 - `src/services/attachmentParser.service.ts`: Parses supported attachments with LiteParse v2.
 - `src/services/aiPrioritizer.service.ts`: Uses Vercel AI SDK structured object generation with `@ai-sdk/google`.
 - `src/services/aiDraftReply.service.ts`: Generates plain-text reply previews for frontend review.
 - `src/services/emailReply.service.ts`: Orchestrates selected-message fetch, thread context, AI draft generation, and approved reply sending.
+- `src/services/aiMeetingExtractor.service.ts`: Extracts auto-addable online meeting details from email context.
+- `src/services/calendarSync.service.ts`: Orchestrates latest-email calendar sync with duplicate prevention.
 - `src/schemas/emailPriority.schema.ts`: Zod validation for AI output and API response shape.
 - `src/config/env.ts`: Environment variable validation.
 - `src/middleware/errorHandler.ts`: Centralized error responses.
@@ -48,14 +54,16 @@ Generate `GOOGLE_REFRESH_TOKEN` once after setting `GOOGLE_CLIENT_ID`,
 bun run mail:auth
 ```
 
-Open `http://localhost:3000`, authorize Gmail read/send access, then copy the printed
-`GOOGLE_REFRESH_TOKEN` into `.env`.
+Open `http://localhost:3000`, authorize Gmail and Calendar access, then copy the
+printed `GOOGLE_REFRESH_TOKEN` into `.env`.
 
-The reply send endpoint requires the refresh token to include:
+Reply sending and calendar sync require the refresh token to include:
 
 ```bash
 https://www.googleapis.com/auth/gmail.readonly
 https://www.googleapis.com/auth/gmail.send
+https://www.googleapis.com/auth/calendar.readonly
+https://www.googleapis.com/auth/calendar.events
 ```
 
 `CORS_ORIGIN` supports:
@@ -172,11 +180,56 @@ Example response:
 }
 ```
 
+### `POST /api/emails/calendar/sync`
+
+Scans recent inbox emails and automatically adds clear online meeting invitations
+to the authenticated user's primary Google Calendar.
+
+Calendar sync rules:
+
+- Only creates an event when a clear meeting date and start time are present.
+- Supports Google Meet, Zoom, and Microsoft Teams links.
+- Adds the event only to the authenticated user's calendar.
+- Does not add attendees.
+- Does not send invite/update emails.
+- Uses `Asia/Kolkata` when the email does not specify a timezone.
+- Uses 30 minutes when the email does not specify an end time.
+- Prevents duplicates by searching Calendar for `Source Gmail Message ID: <emailId>`.
+
+Example response:
+
+```json
+{
+  "success": true,
+  "count": 3,
+  "results": [
+    {
+      "emailId": "18f...",
+      "status": "created",
+      "eventId": "calendar-event-id",
+      "reason": null
+    },
+    {
+      "emailId": "18e...",
+      "status": "already_exists",
+      "eventId": "existing-calendar-event-id",
+      "reason": null
+    },
+    {
+      "emailId": "18d...",
+      "status": "skipped",
+      "eventId": null,
+      "reason": "No clear meeting date and start time found."
+    }
+  ]
+}
+```
+
 ## Attachment Parsing
 
-Supported formats include PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, ODT, ODS, and ODP. LiteParse can require LibreOffice for Office/OpenDocument files. If an attachment is unsupported or parsing fails, the request continues and the parser marks that attachment as `skipped` or `failed`.
+Supported formats include PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, ODT, ODS, ODP, and ICS calendar files. LiteParse can require LibreOffice for Office/OpenDocument files. If an attachment is unsupported or parsing fails, the request continues and the parser marks that attachment as `skipped` or `failed`.
 
-Attachment content from `src/mail.ts` is passed as base64 (`contentBase64`) and adapted to `contentBytes` for the backend parser.
+Attachment content from `src/adapters/google/gmail/fetcher.ts` is passed as base64 (`contentBase64`) and adapted to `contentBytes` for the backend parser.
 
 ## Gmail Fetcher Integration
 
@@ -186,11 +239,11 @@ The backend is already wired to:
 import { fetchLatestEmails as fetchGmailLatestEmails } from "../mail";
 ```
 
-The adapter lives in `src/services/mailFetcher.integration.ts` and imports `fetchLatestEmails` from `src/mail.ts`.
+The adapter lives in `src/services/mailbox.service.ts` and imports `fetchLatestEmails` from `src/adapters/google/gmail/fetcher.ts`.
 
-`src/mail.ts` uses OAuth credentials and a refresh token to call the Gmail API.
-Prioritization needs readonly access. Reply sending needs the additional
-`gmail.send` scope generated by `src/mailApi.ts`.
+The Gmail integration services use OAuth credentials and a refresh token to call the Gmail API.
+Prioritization needs Gmail readonly access. Reply sending needs `gmail.send`.
+Calendar sync needs Calendar readonly/events scopes generated by `src/mailApi.ts`.
 
 ## AI Provider
 

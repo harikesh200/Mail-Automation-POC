@@ -1,5 +1,5 @@
 import type { IncomingEmail } from "../types/email.types";
-import { fetchLatestEmails as fetchGmailLatestEmails } from "../mail";
+import { fetchLatestEmails as fetchGmailLatestEmails } from "../adapters/google/gmail/fetcher";
 
 /**
  * Parses a display sender string into the normalized email address shape.
