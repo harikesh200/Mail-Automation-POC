@@ -41,7 +41,7 @@ Only set shouldCreate=true when all of these are present in the supplied email c
 Supported meeting links:
 - Google Meet: meet.google.com
 - Zoom: zoom.us, *.zoom.us
-- Microsoft Teams: teams.microsoft.com
+- Microsoft Teams / Microsoft Meet / Microsoft meeting invites: teams.microsoft.com, teams.live.com, aka.ms/JoinTeamsMeeting, outlook.office.com/meet, or Outlook Safe Links that encode a Teams URL.
 
 Do not create events for vague scheduling emails, tentative discussions, newsletters, webinars without a clear start time, or emails that only ask to schedule later.
 

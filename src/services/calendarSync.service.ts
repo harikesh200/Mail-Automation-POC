@@ -10,6 +10,7 @@ import {
     createCalendarEvent,
     DEFAULT_CALENDAR_TIMEZONE,
     DEFAULT_EVENT_DURATION_MINUTES,
+    findCalendarEventByMeetingDetails,
     findCalendarEventBySourceEmailId,
     isMissingCalendarScope,
 } from "../adapters/google/calendar/events";
@@ -20,7 +21,7 @@ import {
 import { fetchLatestEmails } from "./mailbox.service";
 
 const SUPPORTED_MEETING_LINK_PATTERN =
-    /https?:\/\/[^\s<>"']*(meet\.google\.com|zoom\.us|teams\.microsoft\.com)[^\s<>"']*/i;
+    /(?:https?:\/\/)?(?:meet\.google\.com|(?:[\w-]+\.)?zoom\.us|teams\.microsoft\.com|teams\.live\.com|aka\.ms\/jointeamsmeeting|outlook\.office\.com\/meet)[^\s<>"'&]*/i;
 const ISO_DATE_TIME_WITH_OFFSET_PATTERN =
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 const ISO_LOCAL_DATE_TIME_PATTERN =
@@ -55,7 +56,49 @@ function getParsedAttachmentText(parsedAttachments: ParsedAttachment[]): string 
 }
 
 function hasSupportedMeetingLink(text: string): boolean {
-    return SUPPORTED_MEETING_LINK_PATTERN.test(text);
+    return Boolean(extractSupportedMeetingUrl(text));
+}
+
+function decodeRepeatedly(value: string): string {
+    let output = value;
+
+    for (let index = 0; index < 3; index += 1) {
+        try {
+            const decoded = decodeURIComponent(output);
+            if (decoded === output) {
+                break;
+            }
+
+            output = decoded;
+        } catch {
+            break;
+        }
+    }
+
+    return output;
+}
+
+function buildMeetingSearchText(text: string): string {
+    const decoded = decodeRepeatedly(text);
+
+    return `${text}\n${decoded}`;
+}
+
+function extractSupportedMeetingUrl(text: string): string | null {
+    const searchText = buildMeetingSearchText(text);
+    const matches = searchText.match(
+        new RegExp(SUPPORTED_MEETING_LINK_PATTERN.source, "gi"),
+    );
+    const preferredMatch = matches?.find((match) => {
+        return !/safelinks\.protection\.outlook\.com/i.test(match);
+    });
+    const match = preferredMatch ?? matches?.[0];
+
+    if (!match) {
+        return null;
+    }
+
+    return /^https?:\/\//i.test(match) ? match : `https://${match}`;
 }
 
 function isValidDateTime(value: string | null | undefined): value is string {
@@ -127,7 +170,8 @@ function validateCandidate(
         return buildSkippedResult(email.id, "Meeting title was not found.");
     }
 
-    if (!candidate.meetingUrl || !hasSupportedMeetingLink(candidate.meetingUrl)) {
+    const meetingUrl = extractSupportedMeetingUrl(candidate.meetingUrl ?? "");
+    if (!meetingUrl) {
         return buildSkippedResult(
             email.id,
             "No supported Google Meet, Zoom, or Microsoft Teams link found.",
@@ -165,12 +209,14 @@ function normalizeCandidateForCalendar(candidate: MeetingEventCandidate) {
             ? normalizedEndDateTime
             : addDefaultDuration(startDateTime);
 
+    const meetingUrl = extractSupportedMeetingUrl(candidate.meetingUrl ?? "");
+
     return {
         title: candidate.title?.trim() ?? "Meeting",
         startDateTime,
         endDateTime,
         timeZone,
-        meetingUrl: candidate.meetingUrl,
+        meetingUrl,
         platform: candidate.platform,
         description: candidate.description,
     };
@@ -183,7 +229,12 @@ async function syncCalendarForEmail(
     try {
         const parsedAttachments = await parseAttachments(email.attachments ?? []);
         const attachmentText = getParsedAttachmentText(parsedAttachments);
-        const combinedText = [email.subject, email.body, attachmentText]
+        const combinedText = [
+            email.subject,
+            email.bodyPreview,
+            email.body,
+            attachmentText,
+        ]
             .filter(Boolean)
             .join("\n\n");
 
@@ -211,11 +262,22 @@ async function syncCalendarForEmail(
                 emailId: email.id,
                 status: "already_exists",
                 eventId: existingEvent.id,
-                reason: null,
+                reason: "Event already exists from a previous backend sync.",
             };
         }
 
         const eventInput = normalizeCandidateForCalendar(candidate);
+        const existingMeetingEvent =
+            await findCalendarEventByMeetingDetails(eventInput);
+        if (existingMeetingEvent) {
+            return {
+                emailId: email.id,
+                status: "already_exists",
+                eventId: existingMeetingEvent.id,
+                reason: "Matching event already exists in Google Calendar.",
+            };
+        }
+
         const event = await createCalendarEvent({
             sourceEmailId: email.id,
             ...eventInput,
