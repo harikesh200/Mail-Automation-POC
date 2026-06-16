@@ -1,5 +1,4 @@
 import type { IncomingEmail } from "../types/email.types";
-import { fetchLatestEmails as fetchGmailLatestEmails } from "../adapters/google/gmail/fetcher";
 
 /**
  * Parses a display sender string into the normalized email address shape.
@@ -54,6 +53,10 @@ function parseRecipients(recipients?: string): IncomingEmail["to"] {
  * @returns Latest emails with attachment payloads mapped to parser-compatible fields.
  */
 export async function fetchLatestEmails(): Promise<IncomingEmail[]> {
+    const { fetchLatestEmails: fetchGmailLatestEmails } = await import(
+        "../adapters/google/gmail/fetcher"
+    );
+
     const emails = await fetchGmailLatestEmails();
 
     return emails.map((email) => ({

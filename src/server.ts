@@ -46,12 +46,16 @@ app.get("/health", (_req, res) => {
     res.json({ success: true, status: "ok" });
 });
 
+app.get("/", (_req, res) => {
+    res.json({ success: true, status: "ok" });
+});
+
 app.use("/api", prioritizeRouter);
 app.use("/api", emailReplyRouter);
 app.use("/api", calendarSyncRouter);
 app.use(errorHandler);
 
-app.listen(env.PORT, () => {
+app.listen(env.PORT, "0.0.0.0", () => {
     logger.info(`Email prioritizer backend listening on port ${env.PORT}`, {
         corsOrigin: env.CORS_ORIGIN,
     });

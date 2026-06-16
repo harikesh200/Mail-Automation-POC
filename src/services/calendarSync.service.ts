@@ -5,20 +5,11 @@ import type {
 } from "../schemas/calendarSync.schema";
 import type { IncomingEmail, ParsedAttachment } from "../types/email.types";
 import { logger } from "../utils/logger";
-import { parseAttachments } from "./attachmentParser.service";
 import {
-    createCalendarEvent,
     DEFAULT_CALENDAR_TIMEZONE,
     DEFAULT_EVENT_DURATION_MINUTES,
-    findCalendarEventByMeetingDetails,
-    findCalendarEventBySourceEmailId,
-    isMissingCalendarScope,
 } from "../adapters/google/calendar/events";
-import {
-    extractMeetingEventWithAi,
-    type MeetingEventCandidate,
-} from "./aiMeetingExtractor.service";
-import { fetchLatestEmails } from "./mailbox.service";
+import type { MeetingEventCandidate } from "./aiMeetingExtractor.service";
 
 const SUPPORTED_MEETING_LINK_PATTERN =
     /(?:https?:\/\/)?(?:meet\.google\.com|(?:[\w-]+\.)?zoom\.us|teams\.microsoft\.com|teams\.live\.com|aka\.ms\/jointeamsmeeting|outlook\.office\.com\/meet)[^\s<>"'&]*/i;
@@ -227,6 +218,8 @@ async function syncCalendarForEmail(
     referenceDate: Date,
 ): Promise<CalendarSyncResult> {
     try {
+        const { parseAttachments } = await import("./attachmentParser.service");
+
         const parsedAttachments = await parseAttachments(email.attachments ?? []);
         const attachmentText = getParsedAttachmentText(parsedAttachments);
         const combinedText = [
@@ -245,16 +238,27 @@ async function syncCalendarForEmail(
             );
         }
 
+        const { extractMeetingEventWithAi } = await import(
+            "./aiMeetingExtractor.service"
+        );
         const candidate = await extractMeetingEventWithAi({
             email,
             attachmentText,
             referenceDate,
         });
+
         const skipResult = validateCandidate(email, candidate);
 
         if (skipResult) {
             return skipResult;
         }
+
+        const {
+            createCalendarEvent,
+            findCalendarEventByMeetingDetails,
+            findCalendarEventBySourceEmailId,
+            isMissingCalendarScope,
+        } = await import("../adapters/google/calendar/events");
 
         const existingEvent = await findCalendarEventBySourceEmailId(email.id);
         if (existingEvent) {
@@ -267,6 +271,7 @@ async function syncCalendarForEmail(
         }
 
         const eventInput = normalizeCandidateForCalendar(candidate);
+
         const existingMeetingEvent =
             await findCalendarEventByMeetingDetails(eventInput);
         if (existingMeetingEvent) {
@@ -290,6 +295,9 @@ async function syncCalendarForEmail(
             reason: null,
         };
     } catch (error) {
+        const { isMissingCalendarScope } = await import(
+            "../adapters/google/calendar/events"
+        );
         const reason = isMissingCalendarScope(error)
             ? "Google Calendar permission is missing. Regenerate GOOGLE_REFRESH_TOKEN with calendar.events scope."
             : error instanceof Error
@@ -333,7 +341,10 @@ async function syncCalendarForEmailOnce(
  * authenticated user's primary Google Calendar.
  */
 export async function syncLatestEmailMeetingsToCalendar(): Promise<CalendarSyncResponse> {
+    const { fetchLatestEmails } = await import("./mailbox.service");
+
     const fetchedEmails = await fetchLatestEmails();
+
     const emailsToProcess = sortLatestEmails(fetchedEmails).slice(
         0,
         env.MAX_EMAILS_TO_PROCESS,

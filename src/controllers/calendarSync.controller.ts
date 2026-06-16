@@ -1,6 +1,5 @@
 import type { RequestHandler } from "express";
 import { calendarSyncResponseSchema } from "../schemas/calendarSync.schema";
-import { syncLatestEmailMeetingsToCalendar } from "../services/calendarSync.service";
 import { logger } from "../utils/logger";
 
 /**
@@ -12,6 +11,10 @@ export const syncEmailMeetingsToCalendarController: RequestHandler = async (
     next,
 ) => {
     try {
+        const { syncLatestEmailMeetingsToCalendar } = await import(
+            "../services/calendarSync.service"
+        );
+
         logger.info("Calendar sync request received");
 
         const response = await syncLatestEmailMeetingsToCalendar();

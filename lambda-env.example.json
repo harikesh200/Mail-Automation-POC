@@ -1,0 +1,22 @@
+{
+    "Variables": {
+        "NODE_ENV": "production",
+        "PORT": "8080",
+        "LOG_LEVEL": "info",
+        "CORS_ORIGIN": "https://your-frontend.example.com",
+        "GOOGLE_GENERATIVE_AI_API_KEY": "replace-me",
+        "GOOGLE_CLIENT_ID": "replace-me",
+        "GOOGLE_CLIENT_SECRET": "replace-me",
+        "GOOGLE_REDIRECT_URI": "https://your-api.example.com/oauth2callback",
+        "GOOGLE_REFRESH_TOKEN": "replace-me",
+        "MAX_EMAILS_TO_PROCESS": "20",
+        "MAX_ATTACHMENT_CHARS": "12000",
+        "GOOGLE_API_TIMEOUT_MS": "10000",
+        "GMAIL_FETCH_CLIENT": "rest",
+        "LITEPARSE_OCR_ENABLED": "true",
+        "LITEPARSE_OCR_LANGUAGE": "eng",
+        "LITEPARSE_TESSDATA_PATH": "/opt/tessdata",
+        "LITEPARSE_MAX_PAGES": "20",
+        "LITEPARSE_NUM_WORKERS": "1"
+    }
+}

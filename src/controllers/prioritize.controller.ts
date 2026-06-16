@@ -1,5 +1,4 @@
 import type { RequestHandler } from "express";
-import { prioritizeLatestEmails } from "../services/emailPrioritizer.service";
 import { logger } from "../utils/logger";
 
 /**
@@ -10,6 +9,10 @@ import { logger } from "../utils/logger";
  */
 export const getPrioritizedEmails: RequestHandler = async (_req, res, next) => {
     try {
+        const { prioritizeLatestEmails } = await import(
+            "../services/emailPrioritizer.service"
+        );
+
         logger.info("Prioritized emails workflow started");
 
         const emails = await prioritizeLatestEmails();

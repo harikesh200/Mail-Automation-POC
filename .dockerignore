@@ -1,0 +1,12 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+node_modules
+npm-debug.log*
+bun-error.log
+.dockerignore
+README.md
+scripts
+lambda-env.json

@@ -1,7 +1,6 @@
 import dotenv from "dotenv";
-import { google } from "googleapis";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const REQUIRED_ENV_VARS = [
     "GOOGLE_CLIENT_ID",
@@ -27,7 +26,8 @@ function requireEnv(name: RequiredEnvVar): string {
 /**
  * Creates an authenticated Gmail API client using a stored OAuth refresh token.
  */
-export function createGmailClient() {
+export async function createGmailClient() {
+    const { google } = await import("googleapis");
     const oauth2Client = new google.auth.OAuth2(
         requireEnv("GOOGLE_CLIENT_ID"),
         requireEnv("GOOGLE_CLIENT_SECRET"),
@@ -44,4 +44,4 @@ export function createGmailClient() {
     });
 }
 
-export type GmailClient = ReturnType<typeof createGmailClient>;
+export type GmailClient = Awaited<ReturnType<typeof createGmailClient>>;

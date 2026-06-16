@@ -83,6 +83,80 @@ Type-check:
 bun run typecheck
 ```
 
+## Deploy to AWS Lambda with ECR
+
+This backend can run on AWS Lambda as a container image without rewriting the
+Express server. `Dockerfile` follows Bun's AWS Lambda deployment pattern: it
+uses the Bun runtime, copies AWS Lambda Web Adapter into `/opt/extensions`,
+starts `src/bootstrap.ts`, and listens on port `8080`. The bootstrap points
+Lambda temp/cache paths at `/tmp` before loading the server.
+
+Prerequisites:
+
+- Docker installed and running.
+- AWS CLI configured with credentials for the target account.
+- An ECR repository and Lambda function in the same AWS Region.
+- A Lambda execution role with the AWS managed `AWSLambdaBasicExecutionRole`
+  policy attached.
+
+Create the Lambda environment file:
+
+```powershell
+Copy-Item lambda-env.example.json lambda-env.json
+```
+
+Fill `lambda-env.json` with production values. Do not bake secrets into the
+container image.
+
+Recommended Lambda settings:
+
+- Memory: `1024 MB` or higher.
+- Timeout: `300` seconds.
+- Ephemeral storage: `1024 MB` if parsing larger PDFs.
+- `GMAIL_FETCH_CLIENT`: `googleapis` or `rest`.
+- `LITEPARSE_TESSDATA_PATH`: `/opt/tessdata`.
+
+Build the Lambda image locally:
+
+```bash
+bun run docker:lambda:build
+```
+
+Optionally test the container locally:
+
+```bash
+docker run --rm -p 3000:8080 --env-file .env -e NODE_ENV=production -e PORT=8080 mail-automation-poc-backend:local
+```
+
+Create or update the ECR image and Lambda function:
+
+```powershell
+.\scripts\deploy-lambda-ecr.ps1 `
+  -Region ap-south-1 `
+  -RepositoryName mail-automation-poc-backend `
+  -FunctionName mail-automation-poc-backend `
+  -RoleArn arn:aws:iam::<account-id>:role/<lambda-execution-role> `
+  -EnvFile .\lambda-env.json `
+  -EnableFunctionUrl
+```
+
+If your AWS CLI uses SSO or a named profile, add `-Profile <profile-name>`.
+
+For later deployments to an existing function, `-RoleArn` is not required:
+
+```powershell
+.\scripts\deploy-lambda-ecr.ps1 `
+  -Region ap-south-1 `
+  -RepositoryName mail-automation-poc-backend `
+  -FunctionName mail-automation-poc-backend `
+  -EnvFile .\lambda-env.json
+```
+
+If you do not use `-EnableFunctionUrl`, expose the function through API Gateway
+or another Lambda-supported HTTP integration. Lambda resolves image tags to an
+image digest during deployment, so push a new image and run
+`update-function-code` again for every backend release.
+
 ## API
 
 ### `GET /api/emails/prioritized`
@@ -227,19 +301,16 @@ Example response:
 
 ## Attachment Parsing
 
-Supported formats include PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, ODT, ODS, ODP, and ICS calendar files. LiteParse can require LibreOffice for Office/OpenDocument files. If an attachment is unsupported or parsing fails, the request continues and the parser marks that attachment as `skipped` or `failed`.
+Supported formats include PDF, DOCX, XLS, XLSX, and ICS calendar files. PDF parsing uses LiteParse v2 with bundled English Tesseract data at `/opt/tessdata`; if OCR fails, the parser retries without OCR so text-based PDFs can still be parsed. If an attachment is unsupported or parsing fails, the request continues and the parser marks that attachment as `skipped` or `failed`.
 
 Attachment content from `src/adapters/google/gmail/fetcher.ts` is passed as base64 (`contentBase64`) and adapted to `contentBytes` for the backend parser.
 
 ## Gmail Fetcher Integration
 
-The backend is already wired to:
-
-```ts
-import { fetchLatestEmails as fetchGmailLatestEmails } from "../mail";
-```
-
-The adapter lives in `src/services/mailbox.service.ts` and imports `fetchLatestEmails` from `src/adapters/google/gmail/fetcher.ts`.
+The adapter lives in `src/services/mailbox.service.ts` and lazy-loads
+`fetchLatestEmails` from `src/adapters/google/gmail/fetcher.ts`. The fetcher can
+use either the `googleapis` client or the lightweight REST client through
+`GMAIL_FETCH_CLIENT`.
 
 The Gmail integration services use OAuth credentials and a refresh token to call the Gmail API.
 Prioritization needs Gmail readonly access. Reply sending needs `gmail.send`.

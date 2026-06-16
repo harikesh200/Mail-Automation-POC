@@ -1,9 +1,14 @@
+import { env } from "../../../config/env";
 import type {
     EmailSummary,
     SendReplyInput,
     SentEmailSummary,
 } from "../../../types/gmail.types";
 import { createGmailClient, type GmailClient } from "./client";
+
+const googleRequestOptions = {
+    timeout: env.GOOGLE_API_TIMEOUT_MS,
+};
 
 /**
  * Encodes bytes for Gmail API raw message payloads.
@@ -75,9 +80,12 @@ function buildReplyReferences(email: EmailSummary): string[] {
 async function getAuthenticatedEmailAddress(
     gmail: GmailClient,
 ): Promise<string> {
-    const response = await gmail.users.getProfile({
-        userId: "me",
-    });
+    const response = await gmail.users.getProfile(
+        {
+            userId: "me",
+        },
+        googleRequestOptions,
+    );
 
     const emailAddress = response.data.emailAddress;
     if (!emailAddress) {
@@ -129,15 +137,18 @@ async function buildReplyMimeMessage(
  * Sends a plain-text Gmail reply to the source email's sender.
  */
 export async function sendReply(input: SendReplyInput): Promise<SentEmailSummary> {
-    const gmail = createGmailClient();
+    const gmail = await createGmailClient();
     const mimeMessage = await buildReplyMimeMessage(gmail, input);
-    const response = await gmail.users.messages.send({
-        userId: "me",
-        requestBody: {
-            raw: encodeBase64Url(mimeMessage),
-            threadId: input.sourceEmail.threadId ?? undefined,
+    const response = await gmail.users.messages.send(
+        {
+            userId: "me",
+            requestBody: {
+                raw: encodeBase64Url(mimeMessage),
+                threadId: input.sourceEmail.threadId ?? undefined,
+            },
         },
-    });
+        googleRequestOptions,
+    );
 
     if (!response.data.id) {
         throw new Error("Gmail did not return a sent message id.");

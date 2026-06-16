@@ -5,7 +5,8 @@
     "private": true,
     "scripts": {
         "dev": "bun run --watch src/server.ts",
-        "start": "bun run src/server.ts",
+        "start": "bun run src/bootstrap.ts",
+        "docker:lambda:build": "docker build --provenance=false --platform linux/amd64 -t mail-automation-poc-backend:local .",
         "typecheck": "tsc --noEmit",
         "fetch:gmail": "bun run src/mail.ts",
         "chat": "bun run --watch index.ts",

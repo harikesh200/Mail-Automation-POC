@@ -7,12 +7,7 @@ import type {
 } from "../types/email.types";
 import { logger } from "../utils/logger";
 import { sortPrioritizedEmails } from "../utils/scoring";
-import {
-    prioritizeEmailWithAi,
-    buildFallbackPriority,
-} from "./aiPrioritizer.service";
-import { parseAttachments } from "./attachmentParser.service";
-import { fetchLatestEmails } from "./mailbox.service";
+import { buildFallbackPriority } from "./fallbackPriority.service";
 
 /**
  * Orders source emails by received time before limiting how many are processed.
@@ -38,39 +33,29 @@ function sortLatestEmails(emails: IncomingEmail[]): IncomingEmail[] {
  * @returns Prioritized emails sorted by score and recency.
  */
 export async function prioritizeLatestEmails(): Promise<PrioritizedEmail[]> {
+    const { fetchLatestEmails } = await import("./mailbox.service");
+
     const fetchedEmails = await fetchLatestEmails();
-    logger.info("Fetched latest emails", {
-        count: fetchedEmails.length,
-    });
 
     const emailsToProcess = sortLatestEmails(fetchedEmails).slice(
         0,
         env.MAX_EMAILS_TO_PROCESS,
     );
-    logger.info("Selected emails for prioritization", {
-        count: emailsToProcess.length,
-        maxEmailsToProcess: env.MAX_EMAILS_TO_PROCESS,
-    });
 
     const prioritizedEmails = await Promise.all(
         emailsToProcess.map(async (email) => {
             let parsedAttachments: ParsedAttachment[] = [];
 
             try {
+                const { parseAttachments } = await import(
+                    "./attachmentParser.service"
+                );
+
                 parsedAttachments = await parseAttachments(email.attachments ?? []);
-                logger.info("Email attachments parsed", {
-                    emailId: email.id,
-                    total: parsedAttachments.length,
-                    parsed: parsedAttachments.filter(
-                        (attachment) => attachment.parseStatus === "parsed",
-                    ).length,
-                    skipped: parsedAttachments.filter(
-                        (attachment) => attachment.parseStatus === "skipped",
-                    ).length,
-                    failed: parsedAttachments.filter(
-                        (attachment) => attachment.parseStatus === "failed",
-                    ).length,
-                });
+
+                const { prioritizeEmailWithAi } = await import(
+                    "./aiPrioritizer.service"
+                );
 
                 const aiResult = await prioritizeEmailWithAi({
                     email,
@@ -90,9 +75,5 @@ export async function prioritizeLatestEmails(): Promise<PrioritizedEmail[]> {
     );
 
     const sortedEmails = sortPrioritizedEmails(prioritizedEmails);
-    logger.success("Email prioritization completed", {
-        count: sortedEmails.length,
-    });
-
     return sortedEmails;
 }

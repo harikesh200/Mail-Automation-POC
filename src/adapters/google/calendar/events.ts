@@ -1,4 +1,4 @@
-import { google, type calendar_v3 } from "googleapis";
+import type { calendar_v3 } from "googleapis";
 import { env } from "../../../config/env";
 
 export const DEFAULT_CALENDAR_ID = "primary";
@@ -6,6 +6,9 @@ export const DEFAULT_CALENDAR_TIMEZONE = "Asia/Kolkata";
 export const DEFAULT_EVENT_DURATION_MINUTES = 30;
 
 const SOURCE_MARKER_PREFIX = "Source Gmail Message ID:";
+const googleRequestOptions = {
+    timeout: env.GOOGLE_API_TIMEOUT_MS,
+};
 
 export type CalendarEventInput = {
     sourceEmailId: string;
@@ -31,7 +34,8 @@ export type FindCalendarEventInput = {
 /**
  * Creates an authenticated Google Calendar client using the shared OAuth token.
  */
-function createCalendarClient() {
+async function createCalendarClient() {
+    const { google } = await import("googleapis");
     const oauth2Client = new google.auth.OAuth2(
         env.GOOGLE_CLIENT_ID,
         env.GOOGLE_CLIENT_SECRET,
@@ -72,14 +76,17 @@ export function isMissingCalendarScope(error: unknown): boolean {
 export async function findCalendarEventBySourceEmailId(
     emailId: string,
 ): Promise<CalendarEventSummary | null> {
-    const calendar = createCalendarClient();
+    const calendar = await createCalendarClient();
     const marker = buildSourceEmailMarker(emailId);
-    const response = await calendar.events.list({
-        calendarId: DEFAULT_CALENDAR_ID,
-        q: marker,
-        singleEvents: true,
-        maxResults: 10,
-    });
+    const response = await calendar.events.list(
+        {
+            calendarId: DEFAULT_CALENDAR_ID,
+            q: marker,
+            singleEvents: true,
+            maxResults: 10,
+        },
+        googleRequestOptions,
+    );
 
     const event = (response.data.items ?? []).find((item) => {
         return (
@@ -155,19 +162,22 @@ function hasOverlappingTime(
 export async function findCalendarEventByMeetingDetails(
     input: FindCalendarEventInput,
 ): Promise<CalendarEventSummary | null> {
-    const calendar = createCalendarClient();
+    const calendar = await createCalendarClient();
     const start = new Date(input.startDateTime);
     const end = new Date(input.endDateTime);
     const timeMin = new Date(start.getTime() - 2 * 60 * 60 * 1000).toISOString();
     const timeMax = new Date(end.getTime() + 2 * 60 * 60 * 1000).toISOString();
-    const response = await calendar.events.list({
-        calendarId: DEFAULT_CALENDAR_ID,
-        timeMin,
-        timeMax,
-        singleEvents: true,
-        maxResults: 50,
-        orderBy: "startTime",
-    });
+    const response = await calendar.events.list(
+        {
+            calendarId: DEFAULT_CALENDAR_ID,
+            timeMin,
+            timeMax,
+            singleEvents: true,
+            maxResults: 50,
+            orderBy: "startTime",
+        },
+        googleRequestOptions,
+    );
     const normalizedMeetingUrl = normalizeMeetingUrl(input.meetingUrl);
     if (!normalizedMeetingUrl) {
         return null;
@@ -197,7 +207,7 @@ export async function findCalendarEventByMeetingDetails(
 export async function createCalendarEvent(
     input: CalendarEventInput,
 ): Promise<CalendarEventSummary> {
-    const calendar = createCalendarClient();
+    const calendar = await createCalendarClient();
     const marker = buildSourceEmailMarker(input.sourceEmailId);
     const descriptionParts = [
         input.description?.trim(),
@@ -206,23 +216,26 @@ export async function createCalendarEvent(
         marker,
     ].filter(Boolean);
 
-    const response = await calendar.events.insert({
-        calendarId: DEFAULT_CALENDAR_ID,
-        sendUpdates: "none",
-        requestBody: {
-            summary: input.title,
-            description: descriptionParts.join("\n\n"),
-            location: input.meetingUrl ?? undefined,
-            start: {
-                dateTime: input.startDateTime,
-                timeZone: input.timeZone,
-            },
-            end: {
-                dateTime: input.endDateTime,
-                timeZone: input.timeZone,
+    const response = await calendar.events.insert(
+        {
+            calendarId: DEFAULT_CALENDAR_ID,
+            sendUpdates: "none",
+            requestBody: {
+                summary: input.title,
+                description: descriptionParts.join("\n\n"),
+                location: input.meetingUrl ?? undefined,
+                start: {
+                    dateTime: input.startDateTime,
+                    timeZone: input.timeZone,
+                },
+                end: {
+                    dateTime: input.endDateTime,
+                    timeZone: input.timeZone,
+                },
             },
         },
-    });
+        googleRequestOptions,
+    );
 
     if (!response.data.id) {
         throw new Error("Google Calendar did not return an event id.");

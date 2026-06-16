@@ -211,6 +211,46 @@ function parseCalendarAttachment(buffer: Buffer): string {
     return buffer.toString("utf8");
 }
 
+function getLiteParseConfig(ocrEnabled: boolean) {
+    return {
+        quiet: true,
+        ocrEnabled,
+        ocrLanguage: env.LITEPARSE_OCR_LANGUAGE,
+        ocrServerUrl: env.LITEPARSE_OCR_SERVER_URL,
+        tessdataPath: env.LITEPARSE_TESSDATA_PATH,
+        maxPages: env.LITEPARSE_MAX_PAGES,
+        numWorkers: env.LITEPARSE_NUM_WORKERS,
+    };
+}
+
+function isOcrInitializationError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+
+    return /ocr|builder|tesseract|tessdata/i.test(message);
+}
+
+async function parseWithLiteParse(buffer: Buffer): Promise<string> {
+    const { LiteParse } = await import("@llamaindex/liteparse");
+    const parser = new LiteParse(getLiteParseConfig(env.LITEPARSE_OCR_ENABLED));
+
+    try {
+        const result = await parser.parse(buffer);
+        return result.text ?? "";
+    } catch (error) {
+        if (!env.LITEPARSE_OCR_ENABLED || !isOcrInitializationError(error)) {
+            throw error;
+        }
+
+        logger.warn("LiteParse OCR failed; retrying without OCR", {
+            message: error instanceof Error ? error.message : String(error),
+        });
+
+        const fallbackParser = new LiteParse(getLiteParseConfig(false));
+        const fallbackResult = await fallbackParser.parse(buffer);
+        return fallbackResult.text ?? "";
+    }
+}
+
 /**
  * Parses a single attachment into text suitable for AI prioritization.
  *
@@ -272,14 +312,10 @@ export async function parseAttachment(
             );
         }
 
-        const { LiteParse } = await import("@llamaindex/liteparse");
-        const parser = new LiteParse({ quiet: true });
-        const result = await parser.parse(buffer);
-
         return buildParsedAttachmentResult(
             filename,
             mimeType,
-            result.text ?? "",
+            await parseWithLiteParse(buffer),
         );
     } catch (error) {
         logger.warn("Attachment parsing failed", {

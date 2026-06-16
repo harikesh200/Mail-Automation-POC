@@ -6,10 +6,6 @@ import {
     sendReplyRequestSchema,
     sendReplyResponseSchema,
 } from "../schemas/emailReply.schema";
-import {
-    generateDraftReply,
-    sendApprovedReply,
-} from "../services/emailReply.service";
 import { logger } from "../utils/logger";
 
 /**
@@ -23,6 +19,9 @@ export const generateDraftReplyController: RequestHandler = async (
     try {
         const { emailId } = emailIdParamSchema.parse(req.params);
         const request = draftReplyRequestSchema.parse(req.body ?? {});
+        const { generateDraftReply } = await import(
+            "../services/emailReply.service"
+        );
 
         logger.info("Draft reply generation started", { emailId });
 
@@ -46,6 +45,9 @@ export const sendReplyController: RequestHandler = async (req, res, next) => {
     try {
         const { emailId } = emailIdParamSchema.parse(req.params);
         const request = sendReplyRequestSchema.parse(req.body ?? {});
+        const { sendApprovedReply } = await import(
+            "../services/emailReply.service"
+        );
 
         logger.info("Approved reply send started", { emailId });
 

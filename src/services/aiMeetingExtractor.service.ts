@@ -1,5 +1,3 @@
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { generateText, Output } from "ai";
 import { z } from "zod";
 import { env } from "../config/env";
 import type { IncomingEmail } from "../types/email.types";
@@ -71,7 +69,8 @@ export type ExtractMeetingEventInput = {
 /**
  * Creates the configured Gemini model instance for meeting extraction.
  */
-function getModel() {
+async function getModel() {
+    const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
     const google = createGoogleGenerativeAI({
         apiKey: env.GOOGLE_GENERATIVE_AI_API_KEY,
     });
@@ -119,8 +118,12 @@ function buildPrompt(input: ExtractMeetingEventInput): string {
 export async function extractMeetingEventWithAi(
     input: ExtractMeetingEventInput,
 ): Promise<MeetingEventCandidate> {
+    const [{ generateText, Output }, model] = await Promise.all([
+        import("ai"),
+        getModel(),
+    ]);
     const result = await generateText({
-        model: getModel(),
+        model,
         system: SYSTEM_PROMPT,
         prompt: buildPrompt(input),
         output: Output.object({

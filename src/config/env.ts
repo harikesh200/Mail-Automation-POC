@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import { z } from "zod";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 /**
  * Validates and coerces all runtime configuration used by the backend.
@@ -37,13 +37,32 @@ const envSchema = z.object({
     GOOGLE_REFRESH_TOKEN: z
         .string()
         .min(1, "GOOGLE_REFRESH_TOKEN is required"),
-    MAX_EMAILS_TO_PROCESS: z.coerce.number().int().min(10).max(20).default(20),
+    MAX_EMAILS_TO_PROCESS: z.coerce.number().int().min(1).max(20).default(20),
     MAX_ATTACHMENT_CHARS: z.coerce
         .number()
         .int()
         .min(1000)
         .max(50000)
         .default(12000),
+    GOOGLE_API_TIMEOUT_MS: z.coerce
+        .number()
+        .int()
+        .min(1000)
+        .max(30000)
+        .default(10000),
+    GMAIL_FETCH_CLIENT: z.enum(["rest", "googleapis"]).default("rest"),
+    LITEPARSE_OCR_ENABLED: z
+        .enum(["true", "false"])
+        .default("true")
+        .transform((value) => value === "true"),
+    LITEPARSE_OCR_LANGUAGE: z.string().default("eng"),
+    LITEPARSE_OCR_SERVER_URL: z.string().optional(),
+    LITEPARSE_TESSDATA_PATH: z
+        .string()
+        .optional()
+        .transform((value) => value?.trim() || undefined),
+    LITEPARSE_MAX_PAGES: z.coerce.number().int().min(1).max(1000).default(20),
+    LITEPARSE_NUM_WORKERS: z.coerce.number().int().min(1).max(4).default(1),
 });
 
 /**
