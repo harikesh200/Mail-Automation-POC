@@ -1,6 +1,11 @@
 import { env } from "../../../config/env";
 import type { EmailSummary } from "../../../types/gmail.types";
 import { logger } from "../../../utils/logger";
+import {
+    fetchEmailByIdWithGoogleApis,
+    fetchLatestEmailsWithGoogleApis,
+    fetchThreadEmailsWithGoogleApis,
+} from "./googleapisFetcher";
 
 const DEFAULT_MAX_RESULTS = 20;
 
@@ -28,30 +33,19 @@ function sortNewestFirst(emails: EmailSummary[]): EmailSummary[] {
 }
 
 /**
- * Fetches and parses the latest Gmail inbox messages through the configured
- * Gmail client implementation.
+ * Fetches and parses the latest Gmail inbox messages.
  */
 export async function fetchLatestEmails(): Promise<EmailSummary[]> {
     const maxResults = getMaxResults();
-    const client = env.GMAIL_FETCH_CLIENT;
 
     logger.info("Fetching latest Gmail inbox messages", {
         maxResults,
-        client,
     });
 
-    const emails =
-        client === "googleapis"
-            ? await import("./googleapisFetcher").then((module) =>
-                  module.fetchLatestEmailsWithGoogleApis(maxResults),
-              )
-            : await import("./restFetcher").then((module) =>
-                  module.fetchLatestEmailsWithRest(maxResults),
-              );
+    const emails = await fetchLatestEmailsWithGoogleApis(maxResults);
 
     logger.info("Fetched latest Gmail inbox messages", {
         count: emails.length,
-        client,
     });
 
     return sortNewestFirst(emails);
@@ -61,17 +55,7 @@ export async function fetchLatestEmails(): Promise<EmailSummary[]> {
  * Fetches and parses a single Gmail message by id.
  */
 export async function fetchEmailById(id: string): Promise<EmailSummary | null> {
-    if (env.GMAIL_FETCH_CLIENT === "googleapis") {
-        const { fetchEmailByIdWithGoogleApis } = await import(
-            "./googleapisFetcher"
-        );
-
-        return fetchEmailByIdWithGoogleApis(id);
-    }
-
-    const { fetchEmailByIdWithRest } = await import("./restFetcher");
-
-    return fetchEmailByIdWithRest(id);
+    return fetchEmailByIdWithGoogleApis(id);
 }
 
 /**
@@ -80,9 +64,6 @@ export async function fetchEmailById(id: string): Promise<EmailSummary | null> {
 export async function fetchThreadEmails(
     threadId: string,
 ): Promise<EmailSummary[]> {
-    const { fetchThreadEmailsWithGoogleApis } = await import(
-        "./googleapisFetcher"
-    );
     const emails = await fetchThreadEmailsWithGoogleApis(threadId);
 
     return emails.sort((left, right) => {

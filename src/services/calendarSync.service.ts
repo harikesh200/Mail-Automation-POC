@@ -257,7 +257,6 @@ async function syncCalendarForEmail(
             createCalendarEvent,
             findCalendarEventByMeetingDetails,
             findCalendarEventBySourceEmailId,
-            isMissingCalendarScope,
         } = await import("../adapters/google/calendar/events");
 
         const existingEvent = await findCalendarEventBySourceEmailId(email.id);

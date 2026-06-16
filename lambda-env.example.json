@@ -12,7 +12,6 @@
         "MAX_EMAILS_TO_PROCESS": "20",
         "MAX_ATTACHMENT_CHARS": "12000",
         "GOOGLE_API_TIMEOUT_MS": "10000",
-        "GMAIL_FETCH_CLIENT": "rest",
         "LITEPARSE_OCR_ENABLED": "true",
         "LITEPARSE_OCR_LANGUAGE": "eng",
         "LITEPARSE_TESSDATA_PATH": "/opt/tessdata",

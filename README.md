@@ -113,7 +113,6 @@ Recommended Lambda settings:
 - Memory: `1024 MB` or higher.
 - Timeout: `300` seconds.
 - Ephemeral storage: `1024 MB` if parsing larger PDFs.
-- `GMAIL_FETCH_CLIENT`: `googleapis` or `rest`.
 - `LITEPARSE_TESSDATA_PATH`: `/opt/tessdata`.
 
 Build the Lambda image locally:
@@ -308,9 +307,8 @@ Attachment content from `src/adapters/google/gmail/fetcher.ts` is passed as base
 ## Gmail Fetcher Integration
 
 The adapter lives in `src/services/mailbox.service.ts` and lazy-loads
-`fetchLatestEmails` from `src/adapters/google/gmail/fetcher.ts`. The fetcher can
-use either the `googleapis` client or the lightweight REST client through
-`GMAIL_FETCH_CLIENT`.
+`fetchLatestEmails` from `src/adapters/google/gmail/fetcher.ts`. The fetcher
+uses the official `googleapis` client and shared MIME parsing helpers.
 
 The Gmail integration services use OAuth credentials and a refresh token to call the Gmail API.
 Prioritization needs Gmail readonly access. Reply sending needs `gmail.send`.

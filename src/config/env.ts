@@ -50,7 +50,6 @@ const envSchema = z.object({
         .min(1000)
         .max(30000)
         .default(10000),
-    GMAIL_FETCH_CLIENT: z.enum(["rest", "googleapis"]).default("rest"),
     LITEPARSE_OCR_ENABLED: z
         .enum(["true", "false"])
         .default("true")
