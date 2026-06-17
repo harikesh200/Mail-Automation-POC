@@ -34,7 +34,7 @@ function sanitizeHeader(value: string): string {
 function encodeHeaderValue(value: string): string {
     const sanitized = sanitizeHeader(value);
 
-    if (/^[\x00-\x7F]*$/.test(sanitized)) {
+    if (Buffer.byteLength(sanitized, "utf8") === sanitized.length) {
         return sanitized;
     }
 
