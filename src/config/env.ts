@@ -48,7 +48,7 @@ const envSchema = z.object({
         .number()
         .int()
         .min(1)
-        .max(5)
+        .max(10)
         .default(3),
     ATTACHMENT_PARSE_CONCURRENCY: z.coerce
         .number()
