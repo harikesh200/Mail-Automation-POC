@@ -1,5 +1,5 @@
 # Use the official AWS Lambda adapter image to handle the Lambda runtime.
-FROM public.ecr.aws/awsguru/aws-lambda-adapter:0.9.0 AS aws-lambda-adapter
+FROM public.ecr.aws/awsguru/aws-lambda-adapter:1.0.1 AS aws-lambda-adapter
 
 # Use the official Bun image to run the application.
 FROM oven/bun:debian AS bun_latest
@@ -25,6 +25,7 @@ ENV TEMP=/tmp
 ENV HOME=/tmp
 ENV XDG_CACHE_HOME=/tmp
 ENV TESSDATA_PREFIX=/opt/tessdata
+ENV AWS_LWA_READINESS_CHECK_PATH=/health
 
 # Set the work directory to `/var/task`. This is the default work directory for Lambda.
 WORKDIR "/var/task"

@@ -52,6 +52,24 @@ function decodeBase64Url(value: string): Buffer {
 }
 
 /**
+ * Excludes inline related parts such as signature images from attachment logic.
+ */
+function isUserVisibleAttachment(attachment: Attachment): boolean {
+    const contentDisposition = attachment.contentDisposition?.toLowerCase();
+    const contentType = attachment.contentType.toLowerCase();
+
+    if (attachment.related) {
+        return false;
+    }
+
+    return !(
+        contentDisposition === "inline" &&
+        Boolean(attachment.cid) &&
+        contentType.startsWith("image/")
+    );
+}
+
+/**
  * Parses a raw Gmail MIME payload into the normalized summary shape.
  */
 export async function parseRawGmailMessage(
@@ -82,12 +100,14 @@ export async function parseRawGmailMessage(
         textPreview: text.slice(0, PREVIEW_LENGTH),
         text,
         htmlLength: typeof parsed.html === "string" ? parsed.html.length : 0,
-        attachments: parsed.attachments.map((attachment: Attachment) => ({
-            filename: attachment.filename ?? null,
-            contentType: attachment.contentType,
-            size: attachment.size,
-            contentBase64: attachment.content.toString("base64"),
-        })),
+        attachments: parsed.attachments
+            .filter(isUserVisibleAttachment)
+            .map((attachment: Attachment) => ({
+                filename: attachment.filename ?? null,
+                contentType: attachment.contentType,
+                size: attachment.size,
+                contentBase64: attachment.content.toString("base64"),
+            })),
     };
 }
 

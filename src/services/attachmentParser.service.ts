@@ -1,6 +1,7 @@
 import { env } from "../config/env";
 import type { EmailAttachment, ParsedAttachment } from "../types/email.types";
 import { logger } from "../utils/logger";
+import { mapWithConcurrency } from "../utils/concurrency";
 
 const supportedMimeTypes = new Set([
     "application/pdf",
@@ -15,6 +16,10 @@ const supportedMimeTypes = new Set([
     "application/vnd.oasis.opendocument.presentation",
     "text/calendar",
     "application/ics",
+    "text/plain",
+    "text/csv",
+    "application/csv",
+    "application/json",
 ]);
 
 const supportedExtensions = new Set([
@@ -29,6 +34,9 @@ const supportedExtensions = new Set([
     ".ods",
     ".odp",
     ".ics",
+    ".txt",
+    ".csv",
+    ".json",
 ]);
 const spreadsheetMimeTypes = new Set([
     "application/vnd.ms-excel",
@@ -41,6 +49,13 @@ const docxMimeTypes = new Set([
 const docxExtensions = new Set([".docx"]);
 const calendarMimeTypes = new Set(["text/calendar", "application/ics"]);
 const calendarExtensions = new Set([".ics"]);
+const plainTextMimeTypes = new Set([
+    "text/plain",
+    "text/csv",
+    "application/csv",
+    "application/json",
+]);
+const plainTextExtensions = new Set([".txt", ".csv", ".json"]);
 
 /**
  * Returns a stable filename for parser output and logs.
@@ -53,9 +68,20 @@ function getAttachmentFilename(attachment: EmailAttachment): string {
  * Returns the best available MIME type for parser selection.
  */
 function getAttachmentMimeType(attachment: EmailAttachment): string {
-    return (
+    const mimeType =
         attachment.mimeType ??
         attachment.contentType ??
+        "application/octet-stream";
+
+    return normalizeMimeType(mimeType);
+}
+
+/**
+ * Normalizes MIME values that may include parameters or uppercase letters.
+ */
+function normalizeMimeType(mimeType: string): string {
+    return (
+        mimeType.split(";")[0]?.trim().toLowerCase() ||
         "application/octet-stream"
     );
 }
@@ -105,6 +131,16 @@ function isCalendarAttachment(filename: string, mimeType: string): boolean {
     return (
         calendarMimeTypes.has(mimeType) ||
         calendarExtensions.has(getFileExtension(filename))
+    );
+}
+
+/**
+ * Checks whether an attachment can be decoded as UTF-8 text directly.
+ */
+function isPlainTextAttachment(filename: string, mimeType: string): boolean {
+    return (
+        plainTextMimeTypes.has(mimeType) ||
+        plainTextExtensions.has(getFileExtension(filename))
     );
 }
 
@@ -211,6 +247,13 @@ function parseCalendarAttachment(buffer: Buffer): string {
     return buffer.toString("utf8");
 }
 
+/**
+ * Extracts UTF-8 text from simple text-like attachments.
+ */
+function parsePlainTextAttachment(buffer: Buffer): string {
+    return buffer.toString("utf8");
+}
+
 function getLiteParseConfig(ocrEnabled: boolean) {
     return {
         quiet: true,
@@ -265,8 +308,16 @@ export async function parseAttachment(
 ): Promise<ParsedAttachment> {
     const filename = getAttachmentFilename(attachment);
     const mimeType = getAttachmentMimeType(attachment);
+    const fileExtension = getFileExtension(filename);
 
     if (!isSupportedAttachment(filename, mimeType)) {
+        logger.debug("Attachment skipped because type is unsupported", {
+            filename,
+            mimeType,
+            fileExtension,
+            size: attachment.size,
+        });
+
         return {
             filename,
             mimeType,
@@ -278,6 +329,13 @@ export async function parseAttachment(
 
     const buffer = getAttachmentBuffer(attachment);
     if (!buffer) {
+        logger.debug("Attachment skipped because content is unavailable", {
+            filename,
+            mimeType,
+            fileExtension,
+            size: attachment.size,
+        });
+
         return {
             filename,
             mimeType,
@@ -288,38 +346,38 @@ export async function parseAttachment(
     }
 
     try {
+        let text: string;
+
         if (isSpreadsheetAttachment(filename, mimeType)) {
-            return buildParsedAttachmentResult(
-                filename,
-                mimeType,
-                await parseSpreadsheet(buffer),
-            );
+            text = await parseSpreadsheet(buffer);
+        } else if (isDocxAttachment(filename, mimeType)) {
+            text = await parseDocx(buffer);
+        } else if (isCalendarAttachment(filename, mimeType)) {
+            text = parseCalendarAttachment(buffer);
+        } else if (isPlainTextAttachment(filename, mimeType)) {
+            text = parsePlainTextAttachment(buffer);
+        } else {
+            text = await parseWithLiteParse(buffer);
         }
 
-        if (isDocxAttachment(filename, mimeType)) {
-            return buildParsedAttachmentResult(
-                filename,
-                mimeType,
-                await parseDocx(buffer),
-            );
-        }
+        const result = buildParsedAttachmentResult(filename, mimeType, text);
 
-        if (isCalendarAttachment(filename, mimeType)) {
-            return buildParsedAttachmentResult(
-                filename,
-                mimeType,
-                parseCalendarAttachment(buffer),
-            );
-        }
-
-        return buildParsedAttachmentResult(
+        logger.debug("Attachment parsing completed", {
             filename,
             mimeType,
-            await parseWithLiteParse(buffer),
-        );
+            fileExtension,
+            size: attachment.size,
+            parseStatus: result.parseStatus,
+            textChars: result.text.length,
+        });
+
+        return result;
     } catch (error) {
         logger.warn("Attachment parsing failed", {
             filename,
+            mimeType,
+            fileExtension,
+            size: attachment.size,
             message: error instanceof Error ? error.message : String(error),
         });
 
@@ -342,7 +400,9 @@ export async function parseAttachment(
 export async function parseAttachments(
     attachments: EmailAttachment[] = [],
 ): Promise<ParsedAttachment[]> {
-    return Promise.all(
-        attachments.map((attachment) => parseAttachment(attachment)),
+    return mapWithConcurrency(
+        attachments,
+        env.ATTACHMENT_PARSE_CONCURRENCY,
+        (attachment) => parseAttachment(attachment),
     );
 }

@@ -78,6 +78,10 @@ export const logger = {
         pinoLogger.info(sanitizeMetadata(metadata) ?? {}, message);
     },
 
+    debug(message: string, metadata?: LogMetadata) {
+        pinoLogger.debug(sanitizeMetadata(metadata) ?? {}, message);
+    },
+
     warn(message: string, metadata?: LogMetadata) {
         pinoLogger.warn(sanitizeMetadata(metadata) ?? {}, message);
     },

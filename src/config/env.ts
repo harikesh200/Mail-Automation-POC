@@ -38,6 +38,30 @@ const envSchema = z.object({
         .string()
         .min(1, "GOOGLE_REFRESH_TOKEN is required"),
     MAX_EMAILS_TO_PROCESS: z.coerce.number().int().min(1).max(20).default(20),
+    GMAIL_MESSAGE_FETCH_CONCURRENCY: z.coerce
+        .number()
+        .int()
+        .min(1)
+        .max(10)
+        .default(5),
+    EMAIL_PRIORITIZATION_CONCURRENCY: z.coerce
+        .number()
+        .int()
+        .min(1)
+        .max(5)
+        .default(3),
+    ATTACHMENT_PARSE_CONCURRENCY: z.coerce
+        .number()
+        .int()
+        .min(1)
+        .max(3)
+        .default(1),
+    CALENDAR_SYNC_CONCURRENCY: z.coerce
+        .number()
+        .int()
+        .min(1)
+        .max(5)
+        .default(3),
     MAX_ATTACHMENT_CHARS: z.coerce
         .number()
         .int()

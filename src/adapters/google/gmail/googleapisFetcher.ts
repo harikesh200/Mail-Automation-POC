@@ -1,5 +1,6 @@
 import { env } from "../../../config/env";
 import type { EmailSummary } from "../../../types/gmail.types";
+import { mapWithConcurrency } from "../../../utils/concurrency";
 import { createGmailClient, type GmailClient } from "./client";
 import { isEmailSummary, parseRawGmailMessage } from "./messageParser";
 
@@ -41,14 +42,16 @@ export async function fetchLatestEmailsWithGoogleApis(
         googleRequestOptions,
     );
     const messages = messageList.data.messages ?? [];
-    const emails = await Promise.all(
-        messages.map((message) => {
+    const emails = await mapWithConcurrency(
+        messages,
+        env.GMAIL_MESSAGE_FETCH_CONCURRENCY,
+        async (message) => {
             if (!message.id) {
-                return Promise.resolve(null);
+                return null;
             }
 
             return fetchEmailSummaryById(gmail, message.id);
-        }),
+        },
     );
 
     return emails.filter(isEmailSummary);
@@ -75,14 +78,16 @@ export async function fetchThreadEmailsWithGoogleApis(
         googleRequestOptions,
     );
     const messages = response.data.messages ?? [];
-    const emails = await Promise.all(
-        messages.map((message) => {
+    const emails = await mapWithConcurrency(
+        messages,
+        env.GMAIL_MESSAGE_FETCH_CONCURRENCY,
+        async (message) => {
             if (!message.id) {
-                return Promise.resolve(null);
+                return null;
             }
 
             return fetchEmailSummaryById(gmail, message.id);
-        }),
+        },
     );
 
     return emails.filter(isEmailSummary);

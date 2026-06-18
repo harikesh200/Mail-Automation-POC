@@ -44,6 +44,10 @@ GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
 GOOGLE_REDIRECT_URI=http://localhost:3000/oauth2callback
 GOOGLE_REFRESH_TOKEN=your_google_refresh_token
 MAX_EMAILS_TO_PROCESS=20
+GMAIL_MESSAGE_FETCH_CONCURRENCY=10
+EMAIL_PRIORITIZATION_CONCURRENCY=5
+ATTACHMENT_PARSE_CONCURRENCY=1
+CALENDAR_SYNC_CONCURRENCY=4
 MAX_ATTACHMENT_CHARS=12000
 ```
 
@@ -70,6 +74,12 @@ https://www.googleapis.com/auth/calendar.events
 - `*` to allow all origins
 - One origin URL (for example `http://localhost:5173`)
 - Multiple origins separated by commas (for example `http://localhost:5173,https://app.example.com`)
+
+For Lambda, keep `GMAIL_MESSAGE_FETCH_CONCURRENCY`,
+`EMAIL_PRIORITIZATION_CONCURRENCY`, `ATTACHMENT_PARSE_CONCURRENCY`, and
+`CALENDAR_SYNC_CONCURRENCY` low enough to avoid parallel Gmail downloads,
+attachment parsing, calendar operations, and AI calls exhausting memory or
+upstream quotas. The example values are tuned for a 2048 MB Lambda function.
 
 Start the backend:
 
@@ -148,8 +158,13 @@ For later deployments to an existing function, `-RoleArn` is not required:
   -Region ap-south-1 `
   -RepositoryName mail-automation-poc-backend `
   -FunctionName mail-automation-poc-backend `
-  -EnvFile .\lambda-env.json
+  -EnvFile .\lambda-env.json `
+  -EnableFunctionUrl
 ```
+
+When `-EnableFunctionUrl` is used, the script also applies Function URL CORS
+from `CORS_ORIGIN`. This keeps Lambda-generated errors, including adapter-level
+`502` responses, from surfacing in the browser as missing CORS headers.
 
 If you do not use `-EnableFunctionUrl`, expose the function through API Gateway
 or another Lambda-supported HTTP integration. Lambda resolves image tags to an

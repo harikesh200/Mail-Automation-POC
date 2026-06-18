@@ -8,6 +8,7 @@ import type {
 import { logger } from "../utils/logger";
 import { sortPrioritizedEmails } from "../utils/scoring";
 import { buildFallbackPriority } from "./fallbackPriority.service";
+import { mapWithConcurrency } from "../utils/concurrency";
 
 /**
  * Orders source emails by received time before limiting how many are processed.
@@ -42,8 +43,10 @@ export async function prioritizeLatestEmails(): Promise<PrioritizedEmail[]> {
         env.MAX_EMAILS_TO_PROCESS,
     );
 
-    const prioritizedEmails = await Promise.all(
-        emailsToProcess.map(async (email) => {
+    const prioritizedEmails = await mapWithConcurrency(
+        emailsToProcess,
+        env.EMAIL_PRIORITIZATION_CONCURRENCY,
+        async (email) => {
             let parsedAttachments: ParsedAttachment[] = [];
 
             try {
@@ -71,7 +74,7 @@ export async function prioritizeLatestEmails(): Promise<PrioritizedEmail[]> {
 
                 return buildFallbackPriority(email, parsedAttachments);
             }
-        }),
+        },
     );
 
     const sortedEmails = sortPrioritizedEmails(prioritizedEmails);

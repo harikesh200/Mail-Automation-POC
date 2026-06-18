@@ -5,6 +5,7 @@ import type {
 } from "../schemas/calendarSync.schema";
 import type { IncomingEmail, ParsedAttachment } from "../types/email.types";
 import { logger } from "../utils/logger";
+import { mapWithConcurrency } from "../utils/concurrency";
 import {
     DEFAULT_CALENDAR_TIMEZONE,
     DEFAULT_EVENT_DURATION_MINUTES,
@@ -354,10 +355,10 @@ export async function syncLatestEmailMeetingsToCalendar(): Promise<CalendarSyncR
         count: emailsToProcess.length,
     });
 
-    const results = await Promise.all(
-        emailsToProcess.map((email) =>
-            syncCalendarForEmailOnce(email, referenceDate),
-        ),
+    const results = await mapWithConcurrency(
+        emailsToProcess,
+        env.CALENDAR_SYNC_CONCURRENCY,
+        (email) => syncCalendarForEmailOnce(email, referenceDate),
     );
 
     logger.success("Calendar sync completed", {
