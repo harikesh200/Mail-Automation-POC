@@ -55,8 +55,40 @@ app.use("/api", emailReplyRouter);
 app.use("/api", calendarSyncRouter);
 app.use(errorHandler);
 
-app.listen(env.PORT, "0.0.0.0", () => {
+const server = app.listen(env.PORT, "0.0.0.0", () => {
     logger.info(`Email prioritizer backend listening on port ${env.PORT}`, {
         corsOrigin: env.CORS_ORIGIN,
     });
 });
+
+const shutdownTimeoutMs = 10_000;
+let isShuttingDown = false;
+
+function shutdown(signal: NodeJS.Signals) {
+    if (isShuttingDown) {
+        return;
+    }
+
+    isShuttingDown = true;
+    logger.info("Shutdown signal received; closing HTTP server", { signal });
+
+    const forceExitTimeout = setTimeout(() => {
+        logger.error("Graceful shutdown timed out; forcing exit");
+        process.exit(1);
+    }, shutdownTimeoutMs);
+
+    server.close((error) => {
+        clearTimeout(forceExitTimeout);
+
+        if (error) {
+            logger.error("HTTP server shutdown failed", { error });
+            process.exit(1);
+        }
+
+        logger.info("HTTP server closed gracefully");
+        process.exit(0);
+    });
+}
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
