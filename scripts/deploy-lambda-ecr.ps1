@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$Region = "ap-south-1",
-    [string]$Profile,
+    [Alias("Profile")]
+    [string]$AwsProfile,
     [string]$RepositoryName = "mail-automation-poc-backend",
     [string]$FunctionName = "mail-automation-poc-backend",
     [string]$ImageTag = (Get-Date -Format "yyyyMMddHHmmss"),
@@ -26,7 +27,7 @@ if (Get-Variable PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyCo
     $PSNativeCommandUseErrorActionPreference = $false
 }
 
-function Require-Command {
+function Assert-Command {
     param([string]$Name)
 
     if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
@@ -34,8 +35,8 @@ function Require-Command {
     }
 }
 
-Require-Command "aws"
-Require-Command "docker"
+Assert-Command "aws"
+Assert-Command "docker"
 
 function Get-EnvironmentVariablesFromFile {
     param([string]$Path)
@@ -97,8 +98,8 @@ function New-FunctionUrlCorsFile {
 }
 
 $AwsBaseArgs = @("--region", $Region)
-if ($Profile) {
-    $AwsBaseArgs += @("--profile", $Profile)
+if ($AwsProfile) {
+    $AwsBaseArgs += @("--profile", $AwsProfile)
 }
 
 $EnvironmentVariables = Get-EnvironmentVariablesFromFile -Path $EnvFile
