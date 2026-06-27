@@ -1,4 +1,3 @@
-import { env } from "../../../config/env";
 import type { EmailSummary } from "../../../types/gmail.types";
 import { logger } from "../../../utils/logger";
 import {
